@@ -40,6 +40,9 @@ import com.raywenderlich.android.lememeify.model.Media
 sealed class MainAction {
   data class ImagesChanged(val images: List<Media>) : MainAction()
   data class VideosChanged(val videos: List<Media>) : MainAction()
+  data class FavoriteChanged(val favorites: List<Media>) : MainAction()
+  data class TrashedChanged(val trashed: List<Media>) : MainAction()
+
   data class ScopedPermissionRequired(
       val intentSender: IntentSender,
       val forType: ModificationType
@@ -61,6 +64,8 @@ sealed class ImageDetailAction {
 
 enum class ModificationType {
   UPDATE,
-  DELETE
+  DELETE,
+  FAVORITE,
+  TRASH
 }
 

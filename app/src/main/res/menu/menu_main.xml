@@ -44,4 +44,12 @@
     android:id="@+id/filter_videos"
     android:title="@string/filter_videos"
     app:showAsAction="never"/>
+  <item
+      android:id="@+id/filter_favorite"
+      android:title="@string/filter_favorite"
+      app:showAsAction="never"/>
+  <item
+      android:id="@+id/filter_trash"
+      android:title="@string/filter_trash"
+      app:showAsAction="never"/>
 </menu>

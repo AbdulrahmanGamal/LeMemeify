@@ -39,8 +39,10 @@ import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.view.*
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -59,6 +61,8 @@ import com.raywenderlich.android.lememeify.ui.ModificationType
 private const val NUMBER_OF_COLUMNS = 5
 private const val REQUEST_PERMISSION_MEDIA = 100
 private const val REQUEST_PERMISSION_DELETE = 400
+private const val REQUEST_PERMISSION_FAVORITE = 500
+private const val REQUEST_PERMISSION_TRASH = 600
 
 class MainFragment : Fragment(), ActionMode.Callback {
 
@@ -99,7 +103,10 @@ class MainFragment : Fragment(), ActionMode.Callback {
     when (requestCode) {
       REQUEST_PERMISSION_DELETE -> {
         if (resultCode == Activity.RESULT_OK) {
-          delete()
+          val multiSelection = tracker.selection.size() > 1
+          if (!multiSelection || !hasSdkHigherThan(Build.VERSION_CODES.Q)) {
+            delete()
+          }
         } else {
           Snackbar.make(binding.root,
               R.string.image_fail, Snackbar.LENGTH_SHORT).show()
@@ -151,6 +158,7 @@ class MainFragment : Fragment(), ActionMode.Callback {
     inflater.inflate(R.menu.menu_main, menu)
   }
 
+  @RequiresApi(Build.VERSION_CODES.R)
   override fun onOptionsItemSelected(item: MenuItem): Boolean {
     return when (item.itemId) {
       R.id.filter_images -> {
@@ -161,10 +169,29 @@ class MainFragment : Fragment(), ActionMode.Callback {
         viewModel.loadVideos()
         true
       }
+      R.id.filter_favorite -> {
+        loadFavorites()
+        true
+      }
+      R.id.filter_trash -> {
+        loadTrashed()
+        true
+      }
       else -> {
         super.onOptionsItemSelected(item)
       }
     }
+  }
+  @RequiresApi(Build.VERSION_CODES.R)
+  private fun loadFavorites() {
+    if (!hasSdkHigherThan(Build.VERSION_CODES.Q)) {
+      Snackbar.make(
+              binding.root,
+              R.string.not_available_feature,
+              Snackbar.LENGTH_SHORT).show()
+      return
+    }
+    viewModel.loadFavorites()
   }
 
   private fun handleAction(action: MainAction) {
@@ -181,6 +208,20 @@ class MainFragment : Fragment(), ActionMode.Callback {
 
         if (action.videos.isEmpty()) {
           Snackbar.make(binding.root, R.string.no_video_on_device, Snackbar.LENGTH_SHORT).show()
+        }
+      }
+      is MainAction.FavoriteChanged -> {
+        imageAdapter.submitList(action.favorites)
+        if (action.favorites.isEmpty()) {
+          Snackbar.make(binding.root, R.string.no_favorite_media,
+                  Snackbar.LENGTH_SHORT).show()
+        }
+      }
+      is MainAction.TrashedChanged -> {
+        imageAdapter.submitList(action.trashed)
+        if (action.trashed.isEmpty()) {
+          Snackbar.make(binding.root, R.string.no_trashed_media,
+                  Snackbar.LENGTH_SHORT).show()
         }
       }
       is MainAction.ScopedPermissionRequired -> {
@@ -248,6 +289,8 @@ class MainFragment : Fragment(), ActionMode.Callback {
     val requestCode = when (requestType) {
       ModificationType.UPDATE -> return
       ModificationType.DELETE -> REQUEST_PERMISSION_DELETE
+      ModificationType.FAVORITE -> REQUEST_PERMISSION_FAVORITE
+      ModificationType.TRASH -> REQUEST_PERMISSION_TRASH
     }
 
     startIntentSenderForResult(intentSender, requestCode, null, 0, 0,
@@ -262,12 +305,41 @@ class MainFragment : Fragment(), ActionMode.Callback {
         delete()
         true
       }
+      R.id.action_favorite -> {
+        addToFavorites()
+        true
+      }
+      R.id.action_trash -> {
+        addToTrash()
+        true
+      }
       else -> {
         false
       }
     }
   }
+  private fun addToFavorites() {
+    //1
+    if (!hasSdkHigherThan(Build.VERSION_CODES.Q)) {
+      Snackbar.make(
+              binding.root,
+              R.string.not_available_feature,
+              Snackbar.LENGTH_SHORT).show()
+      return
+    }
 
+    //2
+    val media = imageAdapter.currentList.filter {
+      tracker.selection.contains("${it.id}")
+    }
+
+    //3
+    val state = !(media.isNotEmpty() && media[0].favorite)
+    //4
+    viewModel.requestFavoriteMedia(media, state)
+    //5
+    actionMode?.finish()
+  }
   override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
     mode?.menuInflater?.inflate(R.menu.action_main, menu)
     return true
@@ -298,5 +370,39 @@ class MainFragment : Fragment(), ActionMode.Callback {
     }
 
     viewModel.deleteMedia(media)
+  }
+  private fun addToTrash() {
+    //1
+    if (!hasSdkHigherThan(Build.VERSION_CODES.Q)) {
+      Snackbar.make(
+              binding.root,
+              R.string.not_available_feature,
+              Snackbar.LENGTH_SHORT).show()
+      return
+    }
+
+    //2
+    val media = imageAdapter.currentList.filter {
+      tracker.selection.contains("${it.id}")
+    }
+
+    //3
+    val state = !(media.isNotEmpty() && media[0].trashed)
+    //4
+    viewModel.requestTrashMedia(media, state)
+    //5
+    actionMode?.finish()
+  }
+  @RequiresApi(Build.VERSION_CODES.R)
+  private fun loadTrashed() {
+    if (!hasSdkHigherThan(Build.VERSION_CODES.Q)) {
+      Snackbar.make(
+              binding.root,
+              R.string.not_available_feature,
+              Snackbar.LENGTH_SHORT).show()
+      return
+    }
+
+    viewModel.loadTrashed()
   }
 }

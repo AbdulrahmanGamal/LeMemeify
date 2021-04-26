@@ -44,8 +44,10 @@ import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import com.raywenderlich.android.lememeify.model.Media
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -256,5 +258,127 @@ object FileOperations {
     }
 
     return result
+  }
+
+  fun deleteMediaBulk(context: Context, media: List<Media>): IntentSender {
+    val uris = media.map { it.uri }
+    return MediaStore.createDeleteRequest(context.contentResolver,
+            uris).intentSender
+  }
+  @SuppressLint("NewApi") //method only call from API 30 onwards
+  fun addToFavorites(context: Context, media: List<Media>, state: Boolean): IntentSender {
+    val uris = media.map { it.uri }
+    return MediaStore.createFavoriteRequest(
+            context.contentResolver,
+            uris,
+            state).intentSender
+  }
+  @RequiresApi(Build.VERSION_CODES.R)
+  suspend fun queryFavoriteMedia(context: Context): List<Media> {
+    val favorite = mutableListOf<Media>()
+    withContext(Dispatchers.IO) {
+      val selection = "${MediaStore.MediaColumns.IS_FAVORITE} = 1"
+      favorite.addAll(queryImagesOnDevice(context, selection))
+      favorite.addAll(queryVideosOnDevice(context, selection))
+    }
+    return favorite
+  }
+  @SuppressLint("NewApi") //method only call from API 30 onwards
+  fun addToTrash(context: Context, media: List<Media>, state: Boolean):
+          IntentSender {
+    val uris = media.map { it.uri }
+    return MediaStore.createTrashRequest(
+            context.contentResolver,
+            uris,
+            state).intentSender
+  }
+
+  @RequiresApi(Build.VERSION_CODES.R)
+  suspend fun queryTrashedMedia(context: Context): List<Media> {
+    val trashed = mutableListOf<Media>()
+
+    withContext(Dispatchers.IO) {
+      trashed.addAll(queryTrashedMediaOnDevice(
+              context,
+              MediaStore.Images.Media.EXTERNAL_CONTENT_URI))
+      trashed.addAll(queryTrashedMediaOnDevice(
+              context,
+              MediaStore.Video.Media.EXTERNAL_CONTENT_URI))
+    }
+    return trashed
+  }
+  @RequiresApi(Build.VERSION_CODES.R)
+  suspend fun queryTrashedMediaOnDevice(context: Context, contentUri: Uri): List<Media> {
+    val media = mutableListOf<Media>()
+    withContext(Dispatchers.IO) {
+      //1
+      val projection = arrayOf(MediaStore.MediaColumns._ID,
+              MediaStore.MediaColumns.RELATIVE_PATH,
+              MediaStore.MediaColumns.DISPLAY_NAME,
+              MediaStore.MediaColumns.SIZE,
+              MediaStore.MediaColumns.MIME_TYPE,
+              MediaStore.MediaColumns.WIDTH,
+              MediaStore.MediaColumns.HEIGHT,
+              MediaStore.MediaColumns.DATE_MODIFIED,
+              MediaStore.MediaColumns.IS_FAVORITE,
+              MediaStore.MediaColumns.IS_TRASHED)
+
+      //2
+      val bundle = Bundle()
+      bundle.putInt("android:query-arg-match-trashed", 1)
+      bundle.putString("android:query-arg-sql-selection",
+              "${MediaStore.MediaColumns.IS_TRASHED} = 1")
+      bundle.putString("android:query-arg-sql-sort-order",
+              "${MediaStore.MediaColumns.DATE_MODIFIED} DESC")
+
+      //3
+      context.contentResolver.query(
+              contentUri,
+              projection,
+              bundle,
+              null
+      )?.use { cursor ->
+
+        //4
+        while (cursor.moveToNext()) {
+          val id = cursor.getLong(cursor.getColumnIndex(
+                  MediaStore.MediaColumns._ID))
+          val path = cursor.getString(cursor.getColumnIndex(
+                  MediaStore.MediaColumns.RELATIVE_PATH))
+          val name = cursor.getString(cursor.getColumnIndex(
+                  MediaStore.MediaColumns.DISPLAY_NAME))
+          val size = cursor.getString(cursor.getColumnIndex(
+                  MediaStore.MediaColumns.SIZE))
+          val mimeType = cursor.getString(cursor.getColumnIndex(
+                  MediaStore.MediaColumns.MIME_TYPE))
+          val width = cursor.getString(cursor.getColumnIndex(
+                  MediaStore.MediaColumns.WIDTH))
+          val height = cursor.getString(cursor.getColumnIndex(
+                  MediaStore.MediaColumns.HEIGHT))
+          val date = cursor.getString(cursor.getColumnIndex(
+                  MediaStore.MediaColumns.DATE_MODIFIED))
+          val favorite = cursor.getString(cursor.getColumnIndex(
+                  MediaStore.MediaColumns.IS_FAVORITE))
+          val uri = ContentUris.withAppendedId(contentUri, id)
+          // Discard invalid images that might exist on the device
+          if (size == null) {
+            continue
+          }
+          media += Media(id,
+                  uri,
+                  path,
+                  name,
+                  size,
+                  mimeType,
+                  width,
+                  height,
+                  date,
+                  favorite == "1",
+                  true)
+        }
+        cursor.close()
+      }
+    }
+    return media
   }
 }

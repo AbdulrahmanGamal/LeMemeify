@@ -40,4 +40,14 @@
     android:title="@string/action_delete"
     android:showAsAction="never"
     tools:ignore="AppCompatResource"/>
+  <item
+      android:id="@+id/action_favorite"
+      android:title="@string/action_favorite_add"
+      android:showAsAction="never"
+      tools:ignore="AppCompatResource" />
+  <item
+      android:id="@+id/action_trash"
+      android:title="@string/action_trash_add"
+      android:showAsAction="never"
+      tools:ignore="AppCompatResource"/>
 </menu>
